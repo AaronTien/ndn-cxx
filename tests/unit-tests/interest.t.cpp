@@ -169,6 +169,57 @@ const uint8_t InterestWithLink[] = {
           0x00
 };
 
+const uint8_t LINK[] = {
+  0x06, 0xda, // Data
+      0x07, 0x14, // Name
+          0x08, 0x05,
+              0x6c, 0x6f, 0x63, 0x61, 0x6c,
+          0x08, 0x03,
+              0x6e, 0x64, 0x6e,
+          0x08, 0x06,
+              0x70, 0x72, 0x65, 0x66, 0x69, 0x78,
+      0x14, 0x07, // MetaInfo
+          0x18, 0x01, // ContentType
+              0x01,
+          0x19, 0x02, // FreshnessPeriod
+              0x27, 0x10,
+      0x15, 0x1a, // Content
+          0x1f, 0x0c, // LinkDelegation
+              0x1e, 0x01, // LinkPreference
+                  0x0a,
+              0x07, 0x07, // Name
+                  0x08, 0x05,
+                      0x6c, 0x6f, 0x63, 0x61, 0x6c,
+          0x1f, 0x0a, // LinkDelegation
+              0x1e, 0x01, // LinkPreference
+                  0x14,
+              0x07, 0x05, // Name
+                  0x08, 0x03,
+                      0x6e, 0x64, 0x6e,
+       0x16, 0x1b, // SignatureInfo
+           0x1b, 0x01, // SignatureType
+               0x01,
+       0x1c, 0x16, // KeyLocator
+           0x07, 0x14, // Name
+               0x08, 0x04,
+                   0x74, 0x65, 0x73, 0x74,
+               0x08, 0x03,
+                   0x6b, 0x65, 0x79,
+               0x08, 0x07,
+                   0x6c, 0x6f, 0x63, 0x61, 0x74, 0x6f, 0x72,
+       0x17, 0x80, // SignatureValue
+           0x2f, 0xd6, 0xf1, 0x6e, 0x80, 0x6f, 0x10, 0xbe, 0xb1, 0x6f, 0x3e, 0x31, 0xec,
+           0xe3, 0xb9, 0xea, 0x83, 0x30, 0x40, 0x03, 0xfc, 0xa0, 0x13, 0xd9, 0xb3, 0xc6,
+           0x25, 0x16, 0x2d, 0xa6, 0x58, 0x41, 0x69, 0x62, 0x56, 0xd8, 0xb3, 0x6a, 0x38,
+           0x76, 0x56, 0xea, 0x61, 0xb2, 0x32, 0x70, 0x1c, 0xb6, 0x4d, 0x10, 0x1d, 0xdc,
+           0x92, 0x8e, 0x52, 0xa5, 0x8a, 0x1d, 0xd9, 0x96, 0x5e, 0xc0, 0x62, 0x0b, 0xcf,
+           0x3a, 0x9d, 0x7f, 0xca, 0xbe, 0xa1, 0x41, 0x71, 0x85, 0x7a, 0x8b, 0x5d, 0xa9,
+           0x64, 0xd6, 0x66, 0xb4, 0xe9, 0x8d, 0x0c, 0x28, 0x43, 0xee, 0xa6, 0x64, 0xe8,
+           0x55, 0xf6, 0x1c, 0x19, 0x0b, 0xef, 0x99, 0x25, 0x1e, 0xdc, 0x78, 0xb3, 0xa7,
+           0xaa, 0x0d, 0x14, 0x58, 0x30, 0xe5, 0x37, 0x6a, 0x6d, 0xdb, 0x56, 0xac, 0xa3,
+           0xfc, 0x90, 0x7a, 0xb8, 0x66, 0x9c, 0x0e, 0xf6, 0xb7, 0x64, 0xd1
+};
+
 const uint8_t InterestWithLinkMissingContentType[] = {
   0x05,  0xf8, // Interest
       0x07,  0x14, // Name
@@ -492,19 +543,6 @@ const uint8_t InterestWithLinkNonDecreasingOrder[] = {
           0x01
 };
 
-const uint8_t InterestWithLocalControlHeader[] = {
-  0x50, 0x25, 0x51, 0x01, 0x0a,
-  0x05, 0x20, 0x07, 0x14, 0x08, 0x05, 0x6c, 0x6f, 0x63, 0x61, 0x6c, 0x08, 0x03, 0x6e, 0x64,
-  0x6e, 0x08, 0x06, 0x70, 0x72, 0x65, 0x66, 0x69, 0x78, 0x09, 0x02, 0x12, 0x00, 0x0a, 0x04,
-  0x01, 0x00, 0x00, 0x00
-};
-
-const uint8_t InterestWithoutLocalControlHeader[] = {
-  0x05, 0x20, 0x07, 0x14, 0x08, 0x05, 0x6c, 0x6f, 0x63, 0x61, 0x6c, 0x08, 0x03, 0x6e, 0x64,
-  0x6e, 0x08, 0x06, 0x70, 0x72, 0x65, 0x66, 0x69, 0x78, 0x09, 0x02, 0x12, 0x00, 0x0a, 0x04,
-  0x01, 0x00, 0x00, 0x00
-};
-
 BOOST_AUTO_TEST_CASE(InterestEqualityChecks)
 {
   // Interest ::= INTEREST-TYPE TLV-LENGTH
@@ -565,17 +603,11 @@ BOOST_AUTO_TEST_CASE(InterestEqualityChecks)
   BOOST_CHECK_EQUAL(a == b, true);
   BOOST_CHECK_EQUAL(a != b, false);
 
-  // Link object
-  Link link("test", {{10, "/test1"}, {20, "/test2"}, {100, "/test3"}});
-  KeyChain keyChain;
-  keyChain.sign(link);
-  Block wire = link.wireEncode();
-
-  a.setLink(wire);
+  a.setLink(Block(LINK, sizeof(LINK)));
   BOOST_CHECK_EQUAL(a == b, false);
   BOOST_CHECK_EQUAL(a != b, true);
 
-  b.setLink(wire);
+  b.setLink(Block(LINK, sizeof(LINK)));
   BOOST_CHECK_EQUAL(a == b, true);
   BOOST_CHECK_EQUAL(a != b, false);
 
@@ -583,11 +615,11 @@ BOOST_AUTO_TEST_CASE(InterestEqualityChecks)
   BOOST_CHECK_EQUAL(a.hasSelectedDelegation(), false);
   BOOST_CHECK_EQUAL(b.hasSelectedDelegation(), false);
 
-  a.setSelectedDelegation(Name("test2"));
+  a.setSelectedDelegation(Name("/local"));
   BOOST_CHECK_EQUAL(a == b, false);
   BOOST_CHECK_EQUAL(a != b, true);
 
-  b.setSelectedDelegation(Name("test2"));
+  b.setSelectedDelegation(Name("/local"));
   BOOST_CHECK_EQUAL(a == b, true);
   BOOST_CHECK_EQUAL(a != b, false);
 }
@@ -668,7 +700,7 @@ BOOST_AUTO_TEST_CASE(SelectorsEqualityChecks)
 
 BOOST_AUTO_TEST_CASE(LinkObject)
 {
-  Link link1("test", {{10, "/test1"}, {20, "/test2"}, {100, "/test3"}});
+  Link link1("test", {{100, "/test3"}, {20, "/test2"}, {10, "/test1"}});
   KeyChain keyChain;
   keyChain.sign(link1);
   Block wire = link1.wireEncode();
@@ -694,6 +726,9 @@ BOOST_AUTO_TEST_CASE(LinkObject)
   ++i;
   BOOST_CHECK_EQUAL(std::get<0>(*i), 100);
   BOOST_CHECK_EQUAL(std::get<1>(*i), Name("test3"));
+
+  a.setLink(Block(LINK, sizeof(LINK)));
+  BOOST_CHECK_EQUAL(a.getLink().getDelegations().size(), 2);
 
   a.unsetLink();
   BOOST_CHECK_EQUAL(a.hasLink(), false);
@@ -804,7 +839,8 @@ BOOST_AUTO_TEST_CASE(LinkObjectNoMetaInfo)
 
   ndn::Interest i;
   BOOST_REQUIRE_NO_THROW(i.wireDecode(interestBlock));
-  BOOST_REQUIRE_THROW(i.getLink(), Block::Error);
+  BOOST_CHECK_THROW(i.getLink(), tlv::Error);
+  BOOST_CHECK_THROW(i.getLink(), tlv::Error);
 }
 
 BOOST_AUTO_TEST_CASE(LinkObjectWrongContentType)
@@ -814,7 +850,7 @@ BOOST_AUTO_TEST_CASE(LinkObjectWrongContentType)
 
   ndn::Interest i;
   BOOST_REQUIRE_NO_THROW(i.wireDecode(interestBlock));
-  BOOST_REQUIRE_THROW(i.getLink(), Link::Error);
+  BOOST_CHECK_THROW(i.getLink(), Link::Error);
 }
 
 BOOST_AUTO_TEST_CASE(InterestContainingSelectedDelegationButNoLink)
@@ -823,7 +859,7 @@ BOOST_AUTO_TEST_CASE(InterestContainingSelectedDelegationButNoLink)
                       sizeof(InterestWithSelectedDelegationButNoLink));
 
   ndn::Interest i;
-  BOOST_REQUIRE_THROW(i.wireDecode(interestBlock), Interest::Error);
+  BOOST_CHECK_THROW(i.wireDecode(interestBlock), Interest::Error);
 }
 
 BOOST_AUTO_TEST_CASE(SelectedDelegationIsNotNonNegativeInteger)
@@ -832,7 +868,7 @@ BOOST_AUTO_TEST_CASE(SelectedDelegationIsNotNonNegativeInteger)
                       sizeof(InterestWithLinkNotNonIntegerSelectedDelegation));
 
   ndn::Interest i;
-  BOOST_REQUIRE_THROW(i.wireDecode(interestBlock), tlv::Error);
+  BOOST_CHECK_THROW(i.wireDecode(interestBlock), tlv::Error);
 }
 
 BOOST_AUTO_TEST_CASE(SelectedDelegationEqualToDelegationCount)
@@ -848,7 +884,7 @@ BOOST_AUTO_TEST_CASE(SelectedDelegationEqualToDelegationCount)
   a.setNonce(100);
   a.setInterestLifetime(time::seconds(10));
   a.setLink(wire);
-  BOOST_REQUIRE_THROW(a.setSelectedDelegation(3), Interest::Error);
+  BOOST_CHECK_THROW(a.setSelectedDelegation(3), Interest::Error);
 }
 
 BOOST_AUTO_TEST_CASE(SelectedDelegationGreaterThanDelegationCount)
@@ -864,7 +900,7 @@ BOOST_AUTO_TEST_CASE(SelectedDelegationGreaterThanDelegationCount)
   a.setNonce(100);
   a.setInterestLifetime(time::seconds(10));
   a.setLink(wire);
-  BOOST_REQUIRE_THROW(a.setSelectedDelegation(4), Interest::Error);
+  BOOST_CHECK_THROW(a.setSelectedDelegation(4), Interest::Error);
 }
 
 BOOST_AUTO_TEST_CASE(Decode)
@@ -885,6 +921,8 @@ BOOST_AUTO_TEST_CASE(Decode)
   BOOST_CHECK_EQUAL(i.getMustBeFresh(), false);
   BOOST_CHECK_EQUAL(i.getExclude().toUri(), "alex,xxxx,*,yyyy");
   BOOST_CHECK_EQUAL(i.getNonce(), 1U);
+  BOOST_CHECK_EQUAL(i.hasLink(), false);
+  BOOST_CHECK_EQUAL(i.hasSelectedDelegation(), false);
 }
 
 BOOST_AUTO_TEST_CASE(DecodeFromStream)
@@ -905,6 +943,8 @@ BOOST_AUTO_TEST_CASE(DecodeFromStream)
   BOOST_CHECK_EQUAL(i.getMustBeFresh(), false);
   BOOST_CHECK_EQUAL(i.getExclude().toUri(), "alex,xxxx,*,yyyy");
   BOOST_CHECK_EQUAL(i.getNonce(), 1U);
+  BOOST_CHECK_EQUAL(i.hasLink(), false);
+  BOOST_CHECK_EQUAL(i.hasSelectedDelegation(), false);
 }
 
 BOOST_AUTO_TEST_CASE(Encode)
@@ -955,144 +995,33 @@ BOOST_AUTO_TEST_CASE(Encode)
   BOOST_CHECK_NE(i.getNonce(), 2);
 }
 
-BOOST_AUTO_TEST_CASE(EncodeWithLocalHeader)
+BOOST_AUTO_TEST_CASE(DecodeEncode) // this test case to ensure that wireDecode resets all the fields
 {
-  ndn::Interest interest(ndn::Name("/local/ndn/prefix"));
-  interest.setMustBeFresh(true);
-  interest.setIncomingFaceId(10);
-  interest.setNonce(1);
+  Interest i1;
+  i1.setName("/test");
+  i1.setMinSuffixComponents(100);
+  i1.setNonce(10);
+  i1.setInterestLifetime(time::seconds(10));
+  i1.setLink(Block(LINK, sizeof(LINK)));
+  i1.setSelectedDelegation(0);
 
-  BOOST_CHECK(!interest.hasWire());
+  Interest i2(i1.wireEncode());
 
-  Block headerBlock =
-    interest.getLocalControlHeader()
-            .wireEncode(interest, nfd::LocalControlHeader::ENCODE_INCOMING_FACE_ID |
-                                  nfd::LocalControlHeader::ENCODE_NEXT_HOP);
+  BOOST_CHECK_EQUAL(i2.getName().toUri(), "/test");
+  BOOST_CHECK_EQUAL(i2.getInterestLifetime(), time::seconds(10));
+  BOOST_CHECK_EQUAL(i2.getMinSuffixComponents(), 100);
+  BOOST_CHECK_EQUAL(i2.getNonce(), 10);
+  BOOST_CHECK_EQUAL(i2.hasLink(), true);
+  BOOST_CHECK_EQUAL(i2.hasSelectedDelegation(), true);
 
-  BOOST_CHECK(interest.hasWire());
-  BOOST_CHECK(headerBlock.hasWire());
+  i2.wireDecode(Interest().wireEncode());
 
-  BOOST_CHECK_NE(headerBlock.wire(), interest.wireEncode().wire());
-  BOOST_CHECK_NE(headerBlock.size(), interest.wireEncode().size());
-  BOOST_CHECK_EQUAL(headerBlock.size(), 5);
-
-  BOOST_CHECK_EQUAL_COLLECTIONS(InterestWithLocalControlHeader,
-                                InterestWithLocalControlHeader + 5,
-                                headerBlock.begin(), headerBlock.end());
-
-  interest.setNonce(1000);
-
-  Block updatedHeaderBlock =
-    interest.getLocalControlHeader()
-            .wireEncode(interest, nfd::LocalControlHeader::ENCODE_INCOMING_FACE_ID |
-                                  nfd::LocalControlHeader::ENCODE_NEXT_HOP);
-  BOOST_CHECK_EQUAL(updatedHeaderBlock.size(), 5);
-
-  // only length should have changed
-  BOOST_CHECK_EQUAL_COLLECTIONS(updatedHeaderBlock.begin() + 2, updatedHeaderBlock.end(),
-                                headerBlock.begin() + 2,        headerBlock.end());
-
-  // updating IncomingFaceId that keeps the length
-  interest.setIncomingFaceId(100);
-  updatedHeaderBlock =
-    interest.getLocalControlHeader()
-            .wireEncode(interest, nfd::LocalControlHeader::ENCODE_INCOMING_FACE_ID |
-                                  nfd::LocalControlHeader::ENCODE_NEXT_HOP);
-  BOOST_CHECK_EQUAL(updatedHeaderBlock.size(), 5);
-  BOOST_CHECK_NE(*(updatedHeaderBlock.begin() + 4), *(headerBlock.begin() + 4));
-
-  // updating IncomingFaceId that increases the length by 2
-  interest.setIncomingFaceId(1000);
-  updatedHeaderBlock =
-    interest.getLocalControlHeader()
-            .wireEncode(interest, nfd::LocalControlHeader::ENCODE_INCOMING_FACE_ID |
-                                  nfd::LocalControlHeader::ENCODE_NEXT_HOP);
-  BOOST_CHECK_EQUAL(updatedHeaderBlock.size(), 6);
-
-  // adding NextHopId
-  interest.setNextHopFaceId(1);
-  updatedHeaderBlock =
-    interest.getLocalControlHeader()
-            .wireEncode(interest, nfd::LocalControlHeader::ENCODE_INCOMING_FACE_ID |
-                                  nfd::LocalControlHeader::ENCODE_NEXT_HOP);
-  BOOST_CHECK_EQUAL(updatedHeaderBlock.size(), 9);
-
-  // masking IncomingFaceId
-  updatedHeaderBlock = interest.getLocalControlHeader()
-                               .wireEncode(interest, nfd::LocalControlHeader::ENCODE_NEXT_HOP);
-  BOOST_CHECK_EQUAL(updatedHeaderBlock.size(), 5);
-
-  // masking NextHopId
-  updatedHeaderBlock =
-    interest.getLocalControlHeader()
-            .wireEncode(interest, nfd::LocalControlHeader::ENCODE_INCOMING_FACE_ID);
-  BOOST_CHECK_EQUAL(updatedHeaderBlock.size(), 6);
-
-  // masking everything
-  BOOST_CHECK_THROW(interest.getLocalControlHeader()
-                            .wireEncode(interest, nfd::LocalControlHeader::ENCODE_NONE),
-                    nfd::LocalControlHeader::Error);
-}
-
-
-BOOST_AUTO_TEST_CASE(DecodeWithLocalHeader)
-{
-  Block wireBlock(InterestWithLocalControlHeader, sizeof(InterestWithLocalControlHeader));
-  const Block& payload = nfd::LocalControlHeader::getPayload(wireBlock);
-  BOOST_REQUIRE_NE(&payload, &wireBlock);
-
-  BOOST_CHECK_EQUAL(payload.type(), static_cast<uint32_t>(tlv::Interest));
-  BOOST_CHECK_EQUAL(wireBlock.type(), static_cast<uint32_t>(tlv::nfd::LocalControlHeader));
-
-  Interest interest(payload);
-  BOOST_CHECK(!interest.getLocalControlHeader().hasIncomingFaceId());
-  BOOST_CHECK(!interest.getLocalControlHeader().hasNextHopFaceId());
-
-  BOOST_REQUIRE_NO_THROW(interest.getLocalControlHeader().wireDecode(wireBlock));
-
-  BOOST_CHECK_EQUAL(
-    interest.getLocalControlHeader()
-            .wireEncode(interest, nfd::LocalControlHeader::ENCODE_INCOMING_FACE_ID |
-                                  nfd::LocalControlHeader::ENCODE_NEXT_HOP).size(),
-    5);
-
-  BOOST_CHECK_EQUAL(interest.getIncomingFaceId(), 10);
-  BOOST_CHECK(!interest.getLocalControlHeader().hasNextHopFaceId());
-
-  BOOST_CHECK_THROW(interest.getLocalControlHeader()
-                            .wireEncode(interest, nfd::LocalControlHeader::ENCODE_NONE),
-                    nfd::LocalControlHeader::Error);
-
-  BOOST_CHECK_THROW(interest.getLocalControlHeader()
-                            .wireEncode(interest, nfd::LocalControlHeader::ENCODE_NEXT_HOP),
-                    nfd::LocalControlHeader::Error);
-
-  BOOST_CHECK_NO_THROW(
-    interest.getLocalControlHeader()
-            .wireEncode(interest, nfd::LocalControlHeader::ENCODE_INCOMING_FACE_ID));
-  BOOST_CHECK_NO_THROW(
-    interest.getLocalControlHeader()
-            .wireEncode(interest, nfd::LocalControlHeader::ENCODE_INCOMING_FACE_ID |
-                                  nfd::LocalControlHeader::ENCODE_NEXT_HOP));
-
-  BOOST_CHECK_NE(
-    (void*)interest.getLocalControlHeader()
-                   .wireEncode(interest, nfd::LocalControlHeader::ENCODE_INCOMING_FACE_ID |
-                                         nfd::LocalControlHeader::ENCODE_NEXT_HOP)
-                   .wire(),
-    (void*)wireBlock.wire());
-
-  BOOST_CHECK_EQUAL(interest.getLocalControlHeader()
-                            .wireEncode(interest, nfd::LocalControlHeader::ENCODE_INCOMING_FACE_ID |
-                                                  nfd::LocalControlHeader::ENCODE_NEXT_HOP).size(),
-                    5);
-}
-
-BOOST_AUTO_TEST_CASE(DecodeWithoutLocalHeader)
-{
-  Block wireBlock(InterestWithoutLocalControlHeader, sizeof(InterestWithoutLocalControlHeader));
-  const Block& payload = nfd::LocalControlHeader::getPayload(wireBlock);
-  BOOST_CHECK_EQUAL(&payload, &wireBlock);
+  BOOST_CHECK_EQUAL(i2.getName().toUri(), "/");
+  BOOST_CHECK_EQUAL(i2.getInterestLifetime(), DEFAULT_INTEREST_LIFETIME);
+  BOOST_CHECK_EQUAL(i2.getMinSuffixComponents(), -1);
+  BOOST_WARN_NE(i2.getNonce(), 10);
+  BOOST_CHECK_EQUAL(i2.hasLink(), false);
+  BOOST_CHECK_EQUAL(i2.hasSelectedDelegation(), false);
 }
 
 BOOST_AUTO_TEST_CASE(MatchesData)

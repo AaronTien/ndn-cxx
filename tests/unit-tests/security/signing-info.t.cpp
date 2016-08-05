@@ -20,6 +20,10 @@
  */
 
 #include "security/signing-info.hpp"
+#include "security/key-chain.hpp"
+
+#include <sstream>
+#include <boost/lexical_cast.hpp>
 
 #include "boost-test.hpp"
 
@@ -31,9 +35,9 @@ BOOST_AUTO_TEST_SUITE(SecuritySigningInfo)
 
 BOOST_AUTO_TEST_CASE(Basic)
 {
-  Name id("/id");
-  Name key("/key");
-  Name cert("/cert");
+  Name id("/my-identity");
+  Name key("/my-key");
+  Name cert("/my-cert");
 
   SigningInfo info;
 
@@ -48,34 +52,42 @@ BOOST_AUTO_TEST_CASE(Basic)
   info.setSigningIdentity(id);
   BOOST_CHECK_EQUAL(info.getSignerType(), SigningInfo::SIGNER_TYPE_ID);
   BOOST_CHECK_EQUAL(info.getSignerName(), id);
+  BOOST_CHECK_EQUAL(info.getDigestAlgorithm(), DIGEST_ALGORITHM_SHA256);
 
   SigningInfo infoId(SigningInfo::SIGNER_TYPE_ID, id);
   BOOST_CHECK_EQUAL(infoId.getSignerType(), SigningInfo::SIGNER_TYPE_ID);
   BOOST_CHECK_EQUAL(infoId.getSignerName(), id);
+  BOOST_CHECK_EQUAL(infoId.getDigestAlgorithm(), DIGEST_ALGORITHM_SHA256);
 
   info.setSigningKeyName(key);
   BOOST_CHECK_EQUAL(info.getSignerType(), SigningInfo::SIGNER_TYPE_KEY);
   BOOST_CHECK_EQUAL(info.getSignerName(), key);
+  BOOST_CHECK_EQUAL(info.getDigestAlgorithm(), DIGEST_ALGORITHM_SHA256);
 
   SigningInfo infoKey(SigningInfo::SIGNER_TYPE_KEY, key);
   BOOST_CHECK_EQUAL(infoKey.getSignerType(), SigningInfo::SIGNER_TYPE_KEY);
   BOOST_CHECK_EQUAL(infoKey.getSignerName(), key);
+  BOOST_CHECK_EQUAL(infoKey.getDigestAlgorithm(), DIGEST_ALGORITHM_SHA256);
 
   info.setSigningCertName(cert);
   BOOST_CHECK_EQUAL(info.getSignerType(), SigningInfo::SIGNER_TYPE_CERT);
   BOOST_CHECK_EQUAL(info.getSignerName(), cert);
+  BOOST_CHECK_EQUAL(info.getDigestAlgorithm(), DIGEST_ALGORITHM_SHA256);
 
   SigningInfo infoCert(SigningInfo::SIGNER_TYPE_CERT, cert);
   BOOST_CHECK_EQUAL(infoCert.getSignerType(), SigningInfo::SIGNER_TYPE_CERT);
   BOOST_CHECK_EQUAL(infoCert.getSignerName(), cert);
+  BOOST_CHECK_EQUAL(infoCert.getDigestAlgorithm(), DIGEST_ALGORITHM_SHA256);
 
   info.setSha256Signing();
   BOOST_CHECK_EQUAL(info.getSignerType(), SigningInfo::SIGNER_TYPE_SHA256);
   BOOST_CHECK_EQUAL(info.getSignerName(), SigningInfo::EMPTY_NAME);
+  BOOST_CHECK_EQUAL(info.getDigestAlgorithm(), DIGEST_ALGORITHM_SHA256);
 
   SigningInfo infoSha(SigningInfo::SIGNER_TYPE_SHA256);
   BOOST_CHECK_EQUAL(infoSha.getSignerType(), SigningInfo::SIGNER_TYPE_SHA256);
   BOOST_CHECK_EQUAL(infoSha.getSignerName(), SigningInfo::EMPTY_NAME);
+  BOOST_CHECK_EQUAL(infoSha.getDigestAlgorithm(), DIGEST_ALGORITHM_SHA256);
 }
 
 BOOST_AUTO_TEST_CASE(CustomSignatureInfo)
@@ -91,6 +103,52 @@ BOOST_AUTO_TEST_CASE(CustomSignatureInfo)
 
   SigningInfo info2(SigningInfo::SIGNER_TYPE_NULL, SigningInfo::EMPTY_NAME, si);
   BOOST_CHECK(info2.getSignatureInfo() == si);
+}
+
+BOOST_AUTO_TEST_CASE(FromString)
+{
+  SigningInfo infoDefault("");
+  BOOST_CHECK_EQUAL(infoDefault.getSignerType(), SigningInfo::SIGNER_TYPE_NULL);
+  BOOST_CHECK_EQUAL(infoDefault.getSignerName(), SigningInfo::EMPTY_NAME);
+  BOOST_CHECK_EQUAL(infoDefault.getDigestAlgorithm(), DIGEST_ALGORITHM_SHA256);
+
+  SigningInfo infoId("id:/my-identity");
+  BOOST_CHECK_EQUAL(infoId.getSignerType(), SigningInfo::SIGNER_TYPE_ID);
+  BOOST_CHECK_EQUAL(infoId.getSignerName(), "/my-identity");
+  BOOST_CHECK_EQUAL(infoId.getDigestAlgorithm(), DIGEST_ALGORITHM_SHA256);
+
+  SigningInfo infoKey("key:/my-key");
+  BOOST_CHECK_EQUAL(infoKey.getSignerType(), SigningInfo::SIGNER_TYPE_KEY);
+  BOOST_CHECK_EQUAL(infoKey.getSignerName(), "/my-key");
+  BOOST_CHECK_EQUAL(infoKey.getDigestAlgorithm(), DIGEST_ALGORITHM_SHA256);
+
+  SigningInfo infoCert("cert:/my-cert");
+  BOOST_CHECK_EQUAL(infoCert.getSignerType(), SigningInfo::SIGNER_TYPE_CERT);
+  BOOST_CHECK_EQUAL(infoCert.getSignerName(), "/my-cert");
+  BOOST_CHECK_EQUAL(infoCert.getDigestAlgorithm(), DIGEST_ALGORITHM_SHA256);
+
+  SigningInfo infoSha("id:/localhost/identity/digest-sha256");
+  BOOST_CHECK_EQUAL(infoSha.getSignerType(), SigningInfo::SIGNER_TYPE_SHA256);
+  BOOST_CHECK_EQUAL(infoSha.getSignerName(), SigningInfo::EMPTY_NAME);
+  BOOST_CHECK_EQUAL(infoSha.getDigestAlgorithm(), DIGEST_ALGORITHM_SHA256);
+}
+
+BOOST_AUTO_TEST_CASE(ToString)
+{
+  // We can't use lexical_cast due to Boost Bug 6298.
+  std::stringstream ss;
+  ss << SigningInfo();
+  BOOST_CHECK_EQUAL(ss.str(), "");
+
+  BOOST_CHECK_EQUAL(boost::lexical_cast<std::string>(
+                    SigningInfo(SigningInfo::SIGNER_TYPE_ID, "/my-identity")), "id:/my-identity");
+  BOOST_CHECK_EQUAL(boost::lexical_cast<std::string>(
+                    SigningInfo(SigningInfo::SIGNER_TYPE_KEY, "/my-key")), "key:/my-key");
+  BOOST_CHECK_EQUAL(boost::lexical_cast<std::string>(
+                    SigningInfo(SigningInfo::SIGNER_TYPE_CERT, "/my-cert")), "cert:/my-cert");
+  BOOST_CHECK_EQUAL(boost::lexical_cast<std::string>(
+                    SigningInfo(SigningInfo::SIGNER_TYPE_SHA256)),
+                    "id:/localhost/identity/digest-sha256");
 }
 
 BOOST_AUTO_TEST_SUITE_END()

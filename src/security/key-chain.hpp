@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /**
- * Copyright (c) 2013-2015 Regents of the University of California.
+ * Copyright (c) 2013-2016 Regents of the University of California.
  *
  * This file is part of ndn-cxx library (NDN C++ library with eXperimental eXtensions).
  *
@@ -132,8 +132,8 @@ public:
    *
    * @sa  http://redmine.named-data.net/issues/2260
    *
-   * @param pibLocator
-   * @param tpmLocator
+   * @param pibLocator PIB locator
+   * @param tpmLocator TPM locator
    * @param allowReset if true, the PIB will be reset when the supplied tpmLocator
    *        mismatches the one in PIB
    */
@@ -190,8 +190,7 @@ public:
    * @see generateRsaKeyPair, generateEcdsaKeyPair, generateEcdsaKeyPairAsDefault
    */
   Name
-  generateRsaKeyPairAsDefault(const Name& identityName, bool isKsk = false,
-                              uint32_t keySize = 2048);
+  generateRsaKeyPairAsDefault(const Name& identityName, bool isKsk = false, uint32_t keySize = 2048);
 
   /**
    * @brief Generate a pair of ECDSA keys for the specified identity and set it as default key for
@@ -204,7 +203,7 @@ public:
    * @see generateRsaKeyPair, generateEcdsaKeyPair, generateRsaKeyPairAsDefault
    */
   Name
-  generateEcdsaKeyPairAsDefault(const Name& identityName, bool isKsk, uint32_t keySize = 256);
+  generateEcdsaKeyPairAsDefault(const Name& identityName, bool isKsk = false, uint32_t keySize = 256);
 
   /**
    * @brief prepare an unsigned identity certificate
@@ -528,6 +527,16 @@ public:
     return m_pib->getDefaultKeyNameForIdentity(identityName);
   }
 
+  /**
+   * @brief Get default key parameters for the specified identity
+   *
+   * If identity has a previously generated key, the returned parameters
+   * will include the same type of the key.  If there are no existing
+   * keys, DEFAULT_KEY_PARAMS is used.
+   */
+  const KeyParams&
+  getDefaultKeyParamsForIdentity(const Name& identityName) const;
+
   Name
   getDefaultCertificateNameForKey(const Name& keyName) const
   {
@@ -778,7 +787,6 @@ private:
   /**
    * @brief Prepare a SignatureInfo TLV according to signing information and return the signing key name
    *
-   * @param sigInfo The SignatureInfo to prepare.
    * @param params The signing parameters.
    * @return The signing key name and prepared SignatureInfo.
    * @throw Error when the requested signing method cannot be satisfied.
@@ -912,7 +920,7 @@ inline void
 KeyChain::registerPib(std::initializer_list<std::string> aliases)
 {
   registerPibImpl(*aliases.begin(), aliases, [] (const std::string& locator) {
-      return unique_ptr<SecPublicInfo>(new PibType(locator));
+      return make_unique<PibType>(locator);
     });
 }
 
@@ -921,7 +929,7 @@ inline void
 KeyChain::registerTpm(std::initializer_list<std::string> aliases)
 {
   registerTpmImpl(*aliases.begin(), aliases, [] (const std::string& locator) {
-      return unique_ptr<SecTpm>(new TpmType(locator));
+      return make_unique<TpmType>(locator);
     });
 }
 

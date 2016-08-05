@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /**
- * Copyright (c) 2013-2014 Regents of the University of California.
+ * Copyright (c) 2013-2016 Regents of the University of California.
  *
  * This file is part of ndn-cxx library (NDN C++ library with eXperimental eXtensions).
  *
@@ -55,7 +55,7 @@ ScopedConnection::operator=(const Connection& connection)
   return *this;
 }
 
-ScopedConnection::~ScopedConnection()
+ScopedConnection::~ScopedConnection() noexcept
 {
   m_connection.disconnect();
 }

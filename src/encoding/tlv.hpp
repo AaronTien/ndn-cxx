@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /**
- * Copyright (c) 2013-2014 Regents of the University of California.
+ * Copyright (c) 2013-2015 Regents of the University of California.
  *
  * This file is part of ndn-cxx library (NDN C++ library with eXperimental eXtensions).
  *
@@ -294,7 +294,7 @@ readType(InputIterator& begin, const InputIterator& end, uint32_t& type)
       return false;
     }
 
-  type = static_cast<uint64_t>(number);
+  type = static_cast<uint32_t>(number);
   return true;
 }
 

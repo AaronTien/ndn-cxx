@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /**
- * Copyright (c) 2013-2014 Regents of the University of California.
+ * Copyright (c) 2013-2015 Regents of the University of California.
  *
  * This file is part of ndn-cxx library (NDN C++ library with eXperimental eXtensions).
  *
@@ -25,7 +25,8 @@
 namespace ndn {
 namespace nfd {
 
-const uint32_t Controller::ERROR_TIMEOUT = 10060;
+const uint32_t Controller::ERROR_TIMEOUT = 10060; // WinSock ESAETIMEDOUT
+const uint32_t Controller::ERROR_NACK = 10800; // 10000 + TLV-TYPE of Nack header
 const uint32_t Controller::ERROR_SERVER = 500;
 const uint32_t Controller::ERROR_LBOUND = 400;
 
@@ -50,6 +51,7 @@ Controller::startCommand(const shared_ptr<ControlCommand>& command,
   m_face.expressInterest(interest,
                          bind(&Controller::processCommandResponse, this, _2,
                               command, onSuccess, onFailure),
+                         bind(onFailure, ERROR_NACK, "network Nack received"),
                          bind(onFailure, ERROR_TIMEOUT, "request timed out"));
 }
 

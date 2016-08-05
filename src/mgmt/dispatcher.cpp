@@ -1,26 +1,22 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /**
- * Copyright (c) 2014-2015,  Regents of the University of California,
- *                           Arizona Board of Regents,
- *                           Colorado State University,
- *                           University Pierre & Marie Curie, Sorbonne University,
- *                           Washington University in St. Louis,
- *                           Beijing Institute of Technology,
- *                           The University of Memphis.
+ * Copyright (c) 2013-2016 Regents of the University of California.
  *
- * This file is part of NFD (Named Data Networking Forwarding Daemon).
- * See AUTHORS.md for complete list of NFD authors and contributors.
+ * This file is part of ndn-cxx library (NDN C++ library with eXperimental eXtensions).
  *
- * NFD is free software: you can redistribute it and/or modify it under the terms
- * of the GNU General Public License as published by the Free Software Foundation,
- * either version 3 of the License, or (at your option) any later version.
+ * ndn-cxx library is free software: you can redistribute it and/or modify it under the
+ * terms of the GNU Lesser General Public License as published by the Free Software
+ * Foundation, either version 3 of the License, or (at your option) any later version.
  *
- * NFD is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
- * PURPOSE.  See the GNU General Public License for more details.
+ * ndn-cxx library is distributed in the hope that it will be useful, but WITHOUT ANY
+ * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+ * PARTICULAR PURPOSE.  See the GNU Lesser General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License along with
- * NFD, e.g., in COPYING.md file.  If not, see <http://www.gnu.org/licenses/>.
+ * You should have received copies of the GNU General Public License and GNU Lesser
+ * General Public License along with ndn-cxx, e.g., in COPYING.md file.  If not, see
+ * <http://www.gnu.org/licenses/>.
+ *
+ * See AUTHORS.md for complete list of ndn-cxx authors and contributors.
  */
 
 #include "dispatcher.hpp"
@@ -32,23 +28,27 @@
 namespace ndn {
 namespace mgmt {
 
+const time::milliseconds DEFAULT_FRESHNESS_PERIOD = time::milliseconds(1000);
+
 Authorization
 makeAcceptAllAuthorization()
 {
   return [] (const Name& prefix,
              const Interest& interest,
              const ControlParameters* params,
-             AcceptContinuation accept,
-             RejectContinuation reject) {
+             const AcceptContinuation& accept,
+             const RejectContinuation& reject) {
     accept("");
   };
 }
 
 Dispatcher::Dispatcher(Face& face, security::KeyChain& keyChain,
-                       const security::SigningInfo& signingInfo)
+                       const security::SigningInfo& signingInfo,
+                       size_t imsCapacity)
   : m_face(face)
   , m_keyChain(keyChain)
   , m_signingInfo(signingInfo)
+  , m_storage(m_face.getIoService(), imsCapacity)
 {
 }
 
@@ -151,16 +151,46 @@ Dispatcher::afterAuthorizationRejected(RejectReply act, const Interest& interest
 }
 
 void
-Dispatcher::sendData(const Name& dataName, const Block& content,
-                     const MetaInfo& metaInfo)
+Dispatcher::queryStorage(const Name& prefix, const Interest& interest,
+                         const InterestHandler& missContinuation)
+{
+  auto data = m_storage.find(interest);
+  if (data == nullptr) {
+    // invoke missContinuation to process this Interest if the query fails.
+    missContinuation(prefix, interest);
+  }
+  else {
+    // send the fetched data through face if query succeeds.
+    sendOnFace(*data);
+  }
+}
+
+void
+Dispatcher::sendData(const Name& dataName, const Block& content, const MetaInfo& metaInfo,
+                     SendDestination option, time::milliseconds imsFresh)
 {
   shared_ptr<Data> data = make_shared<Data>(dataName);
-  data->setContent(content).setMetaInfo(metaInfo);
+  data->setContent(content).setMetaInfo(metaInfo).setFreshnessPeriod(DEFAULT_FRESHNESS_PERIOD);
 
   m_keyChain.sign(*data, m_signingInfo);
 
+  if (option == SendDestination::IMS || option == SendDestination::FACE_AND_IMS) {
+    lp::CachePolicy policy;
+    policy.setPolicy(lp::CachePolicyType::NO_CACHE);
+    data->setTag(make_shared<lp::CachePolicyTag>(policy));
+    m_storage.insert(*data, imsFresh);
+  }
+
+  if (option == SendDestination::FACE || option == SendDestination::FACE_AND_IMS) {
+    sendOnFace(*data);
+  }
+}
+
+void
+Dispatcher::sendOnFace(const Data& data)
+{
   try {
-    m_face.put(*data);
+    m_face.put(data);
   }
   catch (Face::Error& e) {
 #ifdef NDN_CXX_MGMT_DISPATCHER_ENABLE_LOGGING
@@ -214,20 +244,21 @@ Dispatcher::processAuthorizedControlCommandInterest(const std::string& requester
 
 void
 Dispatcher::sendControlResponse(const ControlResponse& resp, const Interest& interest,
-                                bool isNack/*= false*/)
+                                bool isNack)
 {
-  MetaInfo info;
+  MetaInfo metaInfo;
   if (isNack) {
-    info.setType(tlv::ContentType_Nack);
+    metaInfo.setType(tlv::ContentType_Nack);
   }
-
-  sendData(interest.getName(), resp.wireEncode(), info);
+  // control response is always sent out through the face
+  sendData(interest.getName(), resp.wireEncode(), metaInfo, SendDestination::FACE,
+           DEFAULT_FRESHNESS_PERIOD);
 }
 
 void
 Dispatcher::addStatusDataset(const PartialName& relPrefix,
-                             Authorization authorization,
-                             StatusDatasetHandler handler)
+                             const Authorization& authorization,
+                             const StatusDatasetHandler& handler)
 {
   if (!m_topLevelPrefixes.empty()) {
     BOOST_THROW_EXCEPTION(std::domain_error("one or more top-level prefix has been added"));
@@ -242,8 +273,11 @@ Dispatcher::addStatusDataset(const PartialName& relPrefix,
          _1, _2, _3, handler);
   AuthorizationRejectedCallback rejected =
     bind(&Dispatcher::afterAuthorizationRejected, this, _1, _2);
-  m_handlers[relPrefix] = bind(&Dispatcher::processStatusDatasetInterest, this,
-                               _1, _2, authorization, accepted, rejected);
+
+  // follow the general path if storage is a miss
+  InterestHandler missContinuation = bind(&Dispatcher::processStatusDatasetInterest, this,
+                                          _1, _2, authorization, accepted, rejected);
+  m_handlers[relPrefix] = bind(&Dispatcher::queryStorage, this, _1, _2, missContinuation);
 }
 
 void
@@ -271,8 +305,29 @@ Dispatcher::processAuthorizedStatusDatasetInterest(const std::string& requester,
                                                    const Interest& interest,
                                                    const StatusDatasetHandler& handler)
 {
-  StatusDatasetContext context(interest, bind(&Dispatcher::sendData, this, _1, _2, _3));
+  StatusDatasetContext context(interest,
+                               bind(&Dispatcher::sendStatusDatasetSegment, this, _1, _2, _3, _4),
+                               bind(&Dispatcher::sendControlResponse, this, _1, interest, true));
   handler(prefix, interest, context);
+}
+
+void
+Dispatcher::sendStatusDatasetSegment(const Name& dataName, const Block& content,
+                                     time::milliseconds imsFresh, bool isFinalBlock)
+{
+  // the first segment will be sent to both places (the face and the in-memory storage)
+  // other segments will be inserted to the in-memory storage only
+  auto destination = SendDestination::IMS;
+  if (dataName[-1].toSegment() == 0) {
+    destination = SendDestination::FACE_AND_IMS;
+  }
+
+  MetaInfo metaInfo;
+  if (isFinalBlock) {
+    metaInfo.setFinalBlockId(dataName[-1]);
+  }
+
+  sendData(dataName, content, metaInfo, destination, imsFresh);
 }
 
 PostNotification
@@ -286,6 +341,11 @@ Dispatcher::addNotificationStream(const PartialName& relPrefix)
     throw std::out_of_range("relPrefix overlaps with another relPrefix");
   }
 
+  // keep silent if Interest does not match a stored notification
+  InterestHandler missContinuation = bind([]{});
+
+  // register a handler for the subscriber of this notification stream
+  m_handlers[relPrefix] = bind(&Dispatcher::queryStorage, this, _1, _2, missContinuation);
   m_streams[relPrefix] = 0;
   return bind(&Dispatcher::postNotification, this, _1, relPrefix);
 }
@@ -303,7 +363,11 @@ Dispatcher::postNotification(const Block& notification, const PartialName& relPr
   Name streamName(m_topLevelPrefixes.begin()->second.topPrefix);
   streamName.append(relPrefix);
   streamName.appendSequenceNumber(m_streams[streamName]++);
-  sendData(streamName, notification, MetaInfo());
+
+  // notification is sent out the by face after inserting into the in-memory storage,
+  // because a request may be pending in the PIT
+  sendData(streamName, notification, MetaInfo(), SendDestination::FACE_AND_IMS,
+           DEFAULT_FRESHNESS_PERIOD);
 }
 
 } // namespace mgmt

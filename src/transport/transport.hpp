@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /**
- * Copyright (c) 2013-2014 Regents of the University of California.
+ * Copyright (c) 2013-2016 Regents of the University of California.
  *
  * This file is part of ndn-cxx library (NDN C++ library with eXperimental eXtensions).
  *
@@ -25,7 +25,14 @@
 #include "../common.hpp"
 #include "../encoding/block.hpp"
 
-#include <boost/asio.hpp>
+#include <boost/system/error_code.hpp>
+
+// forward declaration
+namespace boost {
+namespace asio {
+class io_service;
+} // namespace asio
+} // namespace boost
 
 namespace ndn {
 
@@ -64,7 +71,7 @@ public:
   close() = 0;
 
   /**
-   * @brief Send block of data from @param wire through the transport
+   * @brief Send block of data from @p wire through the transport
    *
    * @param wire A block of data to send
    */

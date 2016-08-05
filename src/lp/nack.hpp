@@ -33,9 +33,9 @@
 namespace ndn {
 namespace lp {
 
-/**
- * \brief represents a Network NACK
- * \detail This type binds a NackHeader and an Interest, and is intended for use in network layer.
+/** \brief represents a Network Nack
+ *
+ *  This type binds a NackHeader and an Interest, and is intended for use in network layer.
  */
 class Nack : public TagHost
 {

@@ -24,6 +24,9 @@
 
 #include "../face.hpp"
 #include "signal.hpp"
+#include "../lp/packet.hpp"
+
+#define NDN_UTIL_DUMMY_FACE_KEEP_DEPRECATED
 
 namespace ndn {
 namespace util {
@@ -47,6 +50,16 @@ public:
     bool enableRegistrationReply;
   };
 
+  /**
+   * @brief Create a dummy face with internal IO service
+   */
+  DummyClientFace(const Options& options = DummyClientFace::DEFAULT_OPTIONS);
+
+  /**
+   * @brief Create a dummy face with the provided IO service
+   */
+  DummyClientFace(boost::asio::io_service& ioService, const Options& options = DummyClientFace::DEFAULT_OPTIONS);
+
   /** \brief cause the Face to receive a packet
    *  \tparam Packet either Interest or Data
    */
@@ -57,21 +70,8 @@ public:
 private: // constructors
   class Transport;
 
-  // constructors are private; use makeDummyClientFace to create DummyClientFace
-
-  DummyClientFace(const Options& options, shared_ptr<Transport> transport);
-
-  DummyClientFace(const Options& options, shared_ptr<Transport> transport,
-                  boost::asio::io_service& ioService);
-
   void
   construct(const Options& options);
-
-  friend shared_ptr<DummyClientFace>
-  makeDummyClientFace(const DummyClientFace::Options& options);
-
-  friend shared_ptr<DummyClientFace>
-  makeDummyClientFace(boost::asio::io_service& ioService, const DummyClientFace::Options& options);
 
 private:
   void
@@ -102,7 +102,19 @@ public:
    *  User of this class is responsible for cleaning up the container, if necessary.
    *  After .put, .processEvents must be called before the Data would show up here.
    */
-  std::vector<Data> sentDatas;
+  std::vector<Data> sentData;
+
+#ifdef NDN_UTIL_DUMMY_FACE_KEEP_DEPRECATED
+  std::vector<Data>& sentDatas; ///< deprecated alias to sentData
+#endif // NDN_UTIL_DUMMY_FACE_KEEP_DEPRECATED
+
+  /** \brief NACKs sent out of this DummyClientFace
+   *
+   *  Sent NACKs are appended to this container if options.enablePacketLogger is true.
+   *  User of this class is responsible for cleaning up the container, if necessary.
+   *  After .put, .processEvents must be called before the NACK would show up here.
+   */
+  std::vector<lp::Nack> sentNacks;
 
   /** \brief emits whenever an Interest is sent
    *
@@ -116,16 +128,33 @@ public:
    */
   Signal<DummyClientFace, Data> onSendData;
 
-private:
-  shared_ptr<Transport> m_transport;
+  /** \brief emits whenever a NACK is sent
+   *
+   *  After .put, .processEvents must be called before this signal would be emitted.
+   */
+  Signal<DummyClientFace, lp::Nack> onSendNack;
 };
 
+template<>
+void
+DummyClientFace::receive(const lp::Nack& nack);
+
+#ifdef NDN_UTIL_DUMMY_FACE_KEEP_DEPRECATED
+/**
+ * @brief Create a dummy face with internal IO service
+ * @deprecated Use the DummyFace constructor directly
+ */
 shared_ptr<DummyClientFace>
 makeDummyClientFace(const DummyClientFace::Options& options = DummyClientFace::DEFAULT_OPTIONS);
 
+/**
+ * @brief Create a dummy face with the provided IO service
+ * @deprecated Use the DummyFace constructor directly
+ */
 shared_ptr<DummyClientFace>
 makeDummyClientFace(boost::asio::io_service& ioService,
                     const DummyClientFace::Options& options = DummyClientFace::DEFAULT_OPTIONS);
+#endif // NDN_UTIL_DUMMY_FACE_KEEP_DEPRECATED
 
 } // namespace util
 } // namespace ndn

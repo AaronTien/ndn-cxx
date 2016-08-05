@@ -1,26 +1,22 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /**
- * Copyright (c) 2014-2015,  Regents of the University of California,
- *                           Arizona Board of Regents,
- *                           Colorado State University,
- *                           University Pierre & Marie Curie, Sorbonne University,
- *                           Washington University in St. Louis,
- *                           Beijing Institute of Technology,
- *                           The University of Memphis.
+ * Copyright (c) 2013-2016 Regents of the University of California.
  *
- * This file is part of NFD (Named Data Networking Forwarding Daemon).
- * See AUTHORS.md for complete list of NFD authors and contributors.
+ * This file is part of ndn-cxx library (NDN C++ library with eXperimental eXtensions).
  *
- * NFD is free software: you can redistribute it and/or modify it under the terms
- * of the GNU General Public License as published by the Free Software Foundation,
- * either version 3 of the License, or (at your option) any later version.
+ * ndn-cxx library is free software: you can redistribute it and/or modify it under the
+ * terms of the GNU Lesser General Public License as published by the Free Software
+ * Foundation, either version 3 of the License, or (at your option) any later version.
  *
- * NFD is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
- * PURPOSE.  See the GNU General Public License for more details.
+ * ndn-cxx library is distributed in the hope that it will be useful, but WITHOUT ANY
+ * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+ * PARTICULAR PURPOSE.  See the GNU Lesser General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License along with
- * NFD, e.g., in COPYING.md file.  If not, see <http://www.gnu.org/licenses/>.
+ * You should have received copies of the GNU General Public License and GNU Lesser
+ * General Public License along with ndn-cxx, e.g., in COPYING.md file.  If not, see
+ * <http://www.gnu.org/licenses/>.
+ *
+ * See AUTHORS.md for complete list of ndn-cxx authors and contributors.
  */
 
 #ifndef NDN_MGMT_DISPATCHER_HPP
@@ -29,6 +25,7 @@
 #include "../face.hpp"
 #include "../security/key-chain.hpp"
 #include "../encoding/block.hpp"
+#include "../util/in-memory-storage-fifo.hpp"
 #include "control-response.hpp"
 #include "control-parameters.hpp"
 #include "status-dataset-context.hpp"
@@ -76,8 +73,8 @@ typedef std::function<void(RejectReply act)> RejectContinuation;
  */
 typedef std::function<void(const Name& prefix, const Interest& interest,
                            const ControlParameters* params,
-                           AcceptContinuation accept,
-                           RejectContinuation reject)> Authorization;
+                           const AcceptContinuation& accept,
+                           const RejectContinuation& reject)> Authorization;
 
 /** \return an Authorization that accepts all Interests, with empty string as requester
  */
@@ -106,7 +103,7 @@ typedef std::function<void(const ControlResponse& resp)> CommandContinuation;
  */
 typedef std::function<void(const Name& prefix, const Interest& interest,
                            const ControlParameters& params,
-                           CommandContinuation done)> ControlCommandHandler;
+                           const CommandContinuation& done)> ControlCommandHandler;
 
 
 /** \brief a function to handle a StatusDataset request
@@ -146,9 +143,11 @@ public:
    *  \param face the Face on which the dispatcher operates
    *  \param keyChain a KeyChain to sign Data
    *  \param signingInfo signing parameters to sign Data with \p keyChain
+   *  \param imsCapacity capacity of the internal InMemoryStorage used by dispatcher
    */
   Dispatcher(Face& face, security::KeyChain& keyChain,
-             const security::SigningInfo& signingInfo = security::SigningInfo());
+             const security::SigningInfo& signingInfo = security::SigningInfo(),
+             size_t imsCapacity = 256);
 
   virtual
   ~Dispatcher();
@@ -197,6 +196,9 @@ public: // ControlCommand
    *                   relPrefixes in ControlCommands, StatusDatasets, NotificationStreams must be
    *                   non-overlapping
    *                   (no relPrefix is a prefix of another relPrefix)
+   *  \param authorization Callback to authorize the incoming commands
+   *  \param validateParams Callback to validate parameters of the incoming commands
+   *  \param handler Callback to handle the commands
    *  \pre no top-level prefix has been added
    *  \throw std::out_of_range \p relPrefix overlaps with an existing relPrefix
    *  \throw std::domain_error one or more top-level prefix has been added
@@ -217,9 +219,9 @@ public: // ControlCommand
   template<typename CP>
   void
   addControlCommand(const PartialName& relPrefix,
-                    Authorization authorization,
-                    ValidateParameters validateParams,
-                    ControlCommandHandler handler);
+                    const Authorization& authorization,
+                    const ValidateParameters& validateParams,
+                    const ControlCommandHandler& handler);
 
 public: // StatusDataset
   /** \brief register a StatusDataset or a prefix under which StatusDatasets can be requested
@@ -228,6 +230,7 @@ public: // StatusDataset
    *                   non-overlapping
    *                   (no relPrefix is a prefix of another relPrefix)
    *  \param authorization should set identity to Name() if the dataset is public
+   *  \param handler Callback to process the incoming dataset requests
    *  \pre no top-level prefix has been added
    *  \throw std::out_of_range \p relPrefix overlaps with an existing relPrefix
    *  \throw std::domain_error one or more top-level prefix has been added
@@ -254,8 +257,8 @@ public: // StatusDataset
    */
   void
   addStatusDataset(const PartialName& relPrefix,
-                   Authorization authorization,
-                   StatusDatasetHandler handler);
+                   const Authorization& authorization,
+                   const StatusDatasetHandler& handler);
 
 public: // NotificationStream
   /** \brief register a NotificationStream
@@ -315,9 +318,52 @@ private:
   void
   afterAuthorizationRejected(RejectReply act, const Interest& interest);
 
+  /**
+   * @brief query Data the in-memory storage by a given Interest
+   *
+   * if the query fails, invoke @p missContinuation to process @p interest.
+   *
+   * @param prefix the top-level prefix
+   * @param interest the request
+   * @param missContinuation the handler of request when the query fails
+   */
   void
-  sendData(const Name& dataName, const Block& content,
-           const MetaInfo& metaInfo);
+  queryStorage(const Name& prefix, const Interest& interest, const InterestHandler& missContinuation);
+
+  enum class SendDestination {
+    NONE = 0,
+    FACE = 1,
+    IMS  = 2,
+    FACE_AND_IMS = 3
+  };
+
+  /**
+   * @brief send data to the face or in-memory storage
+   *
+   * create a data packet with the given @p dataName, @p content, and @p metaInfo,
+   * set its FreshnessPeriod to DEFAULT_FRESHNESS_PERIOD, and then send it out through the face and/or
+   * insert it into the in-memory storage as specified in @p option.
+   *
+   * if it's toward the in-memory storage, set its CachePolicy to NO_CACHE and limit
+   * its FreshnessPeriod in the storage as @p imsFresh
+   *
+   * @param dataName the name of this piece of data
+   * @param content the content of this piece of data
+   * @param metaInfo some meta information of this piece of data
+   * @param destination where to send this piece of data
+   * @param imsFresh freshness period of this piece of data in in-memory storage
+   */
+  void
+  sendData(const Name& dataName, const Block& content, const MetaInfo& metaInfo,
+           SendDestination destination, time::milliseconds imsFresh);
+
+  /**
+   * @brief send out a data packt through the face
+   *
+   * @param data the data packet to insert
+   */
+  void
+  sendOnFace(const Data& data);
 
   /**
    * @brief process the control-command Interest before authorization.
@@ -390,6 +436,18 @@ private:
                                          const Interest& interest,
                                          const StatusDatasetHandler& handler);
 
+  /**
+   * @brief send a segment of StatusDataset
+   *
+   * @param dataName the name of this piece of data
+   * @param content the content of this piece of data
+   * @param imsFresh the freshness period of this piece of data in the in-memory storage
+   * @param isFinalBlock indicates whether this piece of data is the final block
+   */
+  void
+  sendStatusDatasetSegment(const Name& dataName, const Block& content,
+                           time::milliseconds imsFresh, bool isFinalBlock);
+
   void
   postNotification(const Block& notification, const PartialName& relPrefix);
 
@@ -413,14 +471,17 @@ private:
 
   // NotificationStream name => next sequence number
   std::unordered_map<Name, uint64_t> m_streams;
+
+NDN_CXX_PUBLIC_WITH_TESTS_ELSE_PRIVATE:
+  util::InMemoryStorageFifo m_storage;
 };
 
 template<typename CP>
 void
 Dispatcher::addControlCommand(const PartialName& relPrefix,
-                              Authorization authorization,
-                              ValidateParameters validateParams,
-                              ControlCommandHandler handler)
+                              const Authorization& authorization,
+                              const ValidateParameters& validateParams,
+                              const ControlCommandHandler& handler)
 {
   if (!m_topLevelPrefixes.empty()) {
     throw std::domain_error("one or more top-level prefix has been added");
